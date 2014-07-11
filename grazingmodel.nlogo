@@ -1,54 +1,46 @@
-; Copyright 2014 by Florian Schneider
-; Licensed under Creative Commons
-; Attribution-NonCommercial-ShareAlike 3.0 License
+; Licensed under GNU GENERAL PUBLIC LICENSE Version 3
 
 patches-own [ 
    state      ; integer 0, 1 or 2  for degraded, empty, or vegetated
    ]
 
-globals [ cover ]
+globals [ cover delta_t change ]
 
-
+; ------------------ Initializing  --------------
+; --------- INITIALIZE button calls ---------------
 to init
    ca ; clear all
    random-seed new-seed ; randomly seed random number generator
    init-globals
    init-patches 
    count-cover
+   set delta_t 1
    ask patches [color-patch]
    reset-ticks
 end
 
+; --------- procedures ----------------
 to init-patches
    ask patches [init-patch]
 end
-
-to sim
-  update-model
-end
-
-;=====Initialization overridables =====
 
 to init-globals
    count-cover
 end
 
 to init-patch
-   ifelse random-float 1 < initial_cover [set state 2] [ifelse random-float 1 < 0.5 [set state 0] [set state 1]]
+   ifelse random-float 1 < initial_cover [set state 2] [ifelse random-float 1 < degradation [set state 1] [set state 0]]
    color-patch
 end
 
+; ------------------ Updating  --------------
+; ------- RUN button calls --------
+to sim
+  update-model
+end
 
-;==================================
-;=====   Updating the Model   =====
-;==================================
-
+; ------- procedures ------------
 to update-model
-  if finished?
-   [ 
-      print "Simulation halted"
-      stop 
-   ]
    tick ; increment the tick counter
    update-globals
    update-patches
@@ -59,35 +51,28 @@ to update-patches
    ask patches [update-patch]
 end
 
-; ===== Update overridables =====
-
 to update-globals
-   ; To do: update values of globals.
+   count-cover; To do: update values of globals.
 end
 
 to count-cover
-  set cover count patches 
-with [state = 2]  / count patches
-end
-
-
-to-report finished?
-   ; To do: report model halting condition.
-   report false ; for now
+  set cover count patches with [state = 2] / count patches
 end
 
 to update-patch
-   let my-neighbors count neighbors4 with [state = 2] / 4
-   let colonize ((1 - local_seed_dispersal) * cover + local_seed_dispersal * my-neighbors ) * ( environment - competition * cover )
-   let regenerate regeneration + facilitation * (my-neighbors)
-   let death mortality + grazing * ( 1 - my-neighbors) 
+
+   let neighb_ij count neighbors4 with [state = 2] / 4
+   let colonize ((1 - local_seed_dispersal) * cover + local_seed_dispersal * neighb_ij ) * ( environment - competition * cover )
+   let regenerate regeneration + facilitation * (neighb_ij)
+   let death mortality + grazing * ( 1 - neighb_ij) 
    let r random-float 1
-    
-   if (state = 2) and (r <= death) [set state 1]
-   if (state = 1) and (r <= degradation) [set state 0]
-   if (state = 1) and (r > degradation) and (r <= degradation + colonize) [set state 2] 
-   if (state = 0) and (r <= regenerate) [set state 1]
-    
+    set change TRUE
+   
+   if (state = 1 and change ) and (r <= degradation * delta_t) [set state 0 set change FALSE ]  
+   if (state = 1 and change ) and ((r > degradation * delta_t) and (r <= (degradation + colonize) * delta_t)) [set state 2 set change FALSE]
+   if (state = 2 and change ) and (r <= death * delta_t) [ set state 1 set change FALSE ] 
+   if (state = 0 and change ) and (r <= regenerate * delta_t) [ set state 1 set change FALSE ]   
+
    color-patch
    count-cover
 end
@@ -164,7 +149,7 @@ mortality
 mortality
 0
 0.5
-0.05
+0.1
 0.01
 1
 NIL
@@ -280,7 +265,7 @@ regeneration
 0
 0.2
 0.01
-0.01
+0.005
 1
 NIL
 HORIZONTAL
@@ -294,7 +279,7 @@ degradation
 degradation
 0
 1
-0.1
+0.2
 0.05
 1
 NIL
@@ -347,7 +332,7 @@ grazing
 grazing
 0
 1
-0.3
+0.03
 0.01
 1
 NIL
@@ -356,15 +341,34 @@ HORIZONTAL
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+This is a model of vegetation patterns in arid shrublands, where the plants grow aggregated because of positive feed-backs between plants and soil. The plants provide shade, retain water and organic matter in the soil and therefore ameliorate the local environment which enables seeds to germinate and establish. On bare ground without any neighboring plants, the soil degrades because of erosion processes due to water runoff and wind. These local mechanisms form a patchy pattern on the landscape scale. 
+
+Additionally, livestock grazing puts pressure on the individual plants. This pressure also is spatially constraint to the outer parts of plants. Thus, plants growing in patches benefit by concentrating the risk of being grazed to the outermost plant parts.
+ 
+The model implements both, spatially explicit growth and spatially explicit mortality. 
+
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+Each cell approximately is the size of one plant individual (0.5 x 0.5 m). The cellular automaton defines three potential states: **vegetated** (dark green), **empty** (grey) and **degraded** (white).
+Plants on a vegetated cell can die, leaving it empty. The empty cells can be re-colonised by vegetation or can erode to a degraded cell. The degraded cells may regenerate to empty cells.
+
+The **degradation** of empty cells is a constant rate.
+
+The **re-colonisation** depends on the number of neighbors in the local 4 cell neighborhood (via local seed dispersal) as well as on the global vegetation cover (global competition). The equation for the probability of a re-colonisation event is
+
+The ruler `local_seed_dispersal` defines the proportion of seeds that are spread to the 
+direct neighborhood of a plant versus the proportion that is dispersed globally, i.e.
+to the rest of the landscape. 
+
+The **regeneration** is also depending on the number of vegetated neighbors in the local 4 cell neighborhood. 
+
+In this model, the plant **mortality** is also dependent on the number of neighbors. It is maximal ('mortality + grazing') if a plant has no neighbors and becomes linearly reduced by the number of neighbors. A plant surrounded by other plants remains with an intrinsic mortality constant ('mortality').
+
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+Initialise the landscape with a random distribution of plants. You can regulate the initial vegetation cover. 
 
 ## THINGS TO NOTICE
 
@@ -374,14 +378,6 @@ HORIZONTAL
 
 (suggested things for the user to try to do (move sliders, switches, etc.) with the model)
 
-## EXTENDING THE MODEL
-
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
-
-## NETLOGO FEATURES
-
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
-
 ## RELATED MODELS
 
 (models in the NetLogo Models Library and elsewhere which are of related interest)
@@ -389,6 +385,19 @@ HORIZONTAL
 ## CREDITS AND REFERENCES
 
 (a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+
+
+## LICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2014 Florian D. Schneider
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 @#$#@#$#@
 default
 true

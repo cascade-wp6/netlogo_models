@@ -1,32 +1,28 @@
-; Copyright 2014 by Florian Schneider
-; Licensed under GNU GENERAL PUBLIC LICENSE Version 2
+; see License information under 'Info'
 
 patches-own [ 
    state      ; integer 0, 1 or 2  for degraded, empty, or vegetated
    ]
 
-globals [ cover ]
+globals [ cover delta_t change ]
 
-
+; ------------------ Initializing  --------------
+; --------- INITIALIZE button calls ---------------
 to init
    ca ; clear all
    random-seed new-seed ; randomly seed random number generator
    init-globals
    init-patches 
    count-cover
+   set delta_t 1
    ask patches [color-patch]
    reset-ticks
 end
 
+; --------- procedures ----------------
 to init-patches
    ask patches [init-patch]
 end
-
-to sim
-  update-model
-end
-
-;=====Initialization overridables =====
 
 to init-globals
    count-cover
@@ -37,17 +33,14 @@ to init-patch
    color-patch
 end
 
+; ------------------ Updating  --------------
+; ------- RUN button calls --------
+to sim
+  update-model
+end
 
-;==================================
-;=====   Updating the Model   =====
-;==================================
-
+; ------- procedures ------------
 to update-model
-  if finished?
-   [ 
-      print "Simulation halted"
-      stop 
-   ]
    tick ; increment the tick counter
    update-globals
    update-patches
@@ -58,34 +51,26 @@ to update-patches
    ask patches [update-patch]
 end
 
-; ===== Update overridables =====
-
 to update-globals
-   ; To do: update values of globals.
+   count-cover; To do: update values of globals.
 end
 
 to count-cover
-  set cover count patches 
-with [state = 2]  / count patches
-end
-
-
-to-report finished?
-   ; To do: report model halting condition.
-   report false ; for now
+  set cover count patches with [state = 2] / count patches
 end
 
 to update-patch
-   let my-neighbors count neighbors4 with [state = 2] / 4
-   let colonize ((1 - local_seed_dispersal) * cover + local_seed_dispersal * my-neighbors ) * ( environment - competition * cover )
-   let regenerate regeneration + facilitation * my-neighbors
+   let neighb_ij count neighbors4 with [state = 2] / 4
+   let colonize ((1 - local_seed_dispersal) * cover + local_seed_dispersal * neighb_ij ) * ( environment - competition * cover ) 
+   let regenerate regeneration + facilitation * neighb_ij
    let r random-float 1
-    
-   if (state = 2) and (r <= mortality) [set state 1]
-   if (state = 1) and (r <= degradation) [set state 0]
-   if (state = 1) and (r > degradation) and (r <= degradation + colonize) [set state 2] 
-   if (state = 0) and (r <= regenerate) [set state 1]
-    
+   set change TRUE
+   
+   if (state = 1 and change ) and (r <= degradation * delta_t) [set state 0 set change FALSE ]  
+   if (state = 1 and change ) and ((r > degradation * delta_t) and (r <= (degradation + colonize) * delta_t)) [set state 2 set change FALSE]
+   if (state = 2 and change ) and (r <= mortality * delta_t) [ set state 1 set change FALSE ] 
+   if (state = 0 and change ) and (r <= regenerate * delta_t) [ set state 1 set change FALSE ]   
+
    color-patch
    count-cover
 end
@@ -99,10 +84,10 @@ end
 GRAPHICS-WINDOW
 391
 13
-856
-499
-25
-25
+847
+490
+-1
+-1
 8.922
 1
 10
@@ -113,10 +98,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--25
-25
--25
-25
+0
+49
+0
+49
 0
 0
 1
@@ -207,8 +192,8 @@ initial_cover
 initial_cover
 0
 1
-0.5
-0.01
+0.75
+0.005
 1
 NIL
 HORIZONTAL
@@ -276,9 +261,9 @@ SLIDER
 regeneration
 regeneration
 0
-0.25
+0.15
 0.01
-0.01
+0.005
 1
 NIL
 HORIZONTAL
@@ -350,23 +335,25 @@ The plant **mortality** is a constant rate, as is the **degradation** of empty c
 
 The **re-colonisation** depends on the number of neighbors in the local 4 cell neighborhood (via local seed dispersal) as well as on the global vegetation cover (global competition). The equation for the probability of a re-colonisation event is
 
+The ruler `local_seed_dispersal` defines the proportion of seeds that are spread to the 
+direct neighborhood of a plant versus the proportion that is dispersed globally, i.e.
+to the rest of the landscape. 
 
- 
 The **regeneration** is also depending on the number of vegetated neighbors in the local 4 cell neighborhood. 
 
 ## HOW TO USE IT
 
-First, initialise the landscape with a random distribution of plants. You can regulate the initial vegetation cover. 
+Initialise the landscape with a random distribution of plants. You can regulate the initial vegetation cover. 
 
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+Altering the `regeneration` of empty cells is most influential on the development of clustering. At low values, degraded cells require plants in their neighborhood to be regenerated.
 
 ## THINGS TO TRY
 
 ### Bistability
-Set intermediate environmental conditions (0.5) and rather high mortality (0.3). Now, start the simulation from a  high vegetation cover (>0.6) and see how vegetation cover establishes into an equilibrium. Then, repeatedly restart it with a very low vegetation cover (< 0.01), and see how likely it is that the vegetation recovers. 
+Set intermediate environmental conditions (0.5) and rather high mortality (0.3). Now, start the simulation from a  high vegetation cover (>0.6) and see how vegetation cover establishes into an equilibrium. Then, repeatedly restart it with a very low vegetation cover ( 0.005), and see how likely it is that the vegetation recovers. 
 
  
 ## RELATED MODELS
@@ -382,9 +369,15 @@ The original model was published in a peer-reviewed research article:
 
 ## LICENSE
 
-This netlogo model is published under GNU GENERAL PUBLIC LICENSE Version 2, which allows you to copy, use and edit the file. Republication is allowed only if maintaining this license in any derivatives. The full text of this license is available at
+The MIT License (MIT)
 
- https://www.gnu.org/licenses/gpl-2.0.txt
+Copyright (c) 2014 Florian D. Schneider
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 @#$#@#$#@
 default
 true
