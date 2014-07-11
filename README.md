@@ -11,6 +11,10 @@ We want to populate this repository with a series of models that are useful for:
 - "games" that allow to communicate the complexity of the dynamics in arid shrublands under different sources of pressure (like drought, grazing, or fire). 
   
 
-## Install
+## How to use
 
-First, you need to install NetLogo
+First, you need to [download and install the latest version of NetLogo](http://ccl.northwestern.edu/netlogo/download.shtml).
+
+Then launch the program and open (File/open) one of the .nlogo files. 
+
+
